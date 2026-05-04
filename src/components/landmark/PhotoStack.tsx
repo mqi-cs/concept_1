@@ -2,7 +2,16 @@
 
 import Image from "next/image";
 import LoveButton from "@/components/photo/LoveButton";
-import type { Photo } from "@/types";
+
+interface Photo {
+  _id: string;
+  url: string | null;
+  uploaderName: string | null;
+  timeOfDay?: string;
+  tags: string[];
+  loveCount: number;
+  lovedByUser: boolean;
+}
 
 interface PhotoStackProps {
   photos: Photo[];
@@ -20,14 +29,16 @@ export default function PhotoStack({ photos }: PhotoStackProps) {
   return (
     <div className="flex flex-col gap-3">
       {photos.map((photo) => (
-        <div key={photo.id} className="relative rounded-lg overflow-hidden bg-gray-100">
-          <Image
-            src={photo.thumbnailUrl || photo.url}
-            alt={`Photo at landmark`}
-            width={400}
-            height={300}
-            className="w-full h-48 object-cover"
-          />
+        <div key={photo._id} className="relative rounded-lg overflow-hidden bg-gray-100">
+          {photo.url && (
+            <Image
+              src={photo.url}
+              alt="Photo at landmark"
+              width={400}
+              height={300}
+              className="w-full h-48 object-cover"
+            />
+          )}
           <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-3">
             <div className="flex items-center justify-between">
               <span className="text-white text-xs">
@@ -39,7 +50,7 @@ export default function PhotoStack({ photos }: PhotoStackProps) {
                 )}
               </span>
               <LoveButton
-                photoId={photo.id}
+                photoId={photo._id}
                 initialLoved={photo.lovedByUser}
                 initialCount={photo.loveCount}
               />

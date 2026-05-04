@@ -4,11 +4,17 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { MapContainer as LeafletMap, TileLayer, useMapEvents } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import LandmarkMarker from "./LandmarkMarker";
 import { useMapStore } from "@/stores/mapStore";
 import "leaflet/dist/leaflet.css";
 
-function updateBounds(map: L.Map, setBounds: (b: { west: number; south: number; east: number; north: number }) => void, setZoom: (z: number) => void) {
+function updateBounds(
+  map: L.Map,
+  setBounds: (b: { west: number; south: number; east: number; north: number }) => void,
+  setZoom: (z: number) => void
+) {
   const b = map.getBounds();
   setBounds({
     west: b.getWest(),
@@ -39,37 +45,30 @@ function MapEvents() {
   return null;
 }
 
-function LandmarksFetcher() {
-  const { bounds, setLandmarks, setLoading } = useMapStore();
+function LandmarkMarkers() {
+  const { bounds, selectLandmark } = useMapStore();
 
-  useEffect(() => {
-    if (!bounds) return;
+  const landmarks = useQuery(
+    api.landmarks.getInBBox,
+    bounds ? bounds : "skip"
+  );
 
-    const controller = new AbortController();
-    setLoading(true);
+  if (!landmarks) return null;
 
-    fetch(
-      `/api/landmarks?bbox=${bounds.west},${bounds.south},${bounds.east},${bounds.north}`,
-      { signal: controller.signal }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.landmarks) setLandmarks(data.landmarks);
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      })
-      .finally(() => setLoading(false));
-
-    return () => controller.abort();
-  }, [bounds, setLandmarks, setLoading]);
-
-  return null;
+  return (
+    <MarkerClusterGroup chunkedLoading>
+      {landmarks.map((landmark) => (
+        <LandmarkMarker
+          key={landmark._id}
+          landmark={landmark}
+          onClick={() => selectLandmark(landmark._id)}
+        />
+      ))}
+    </MarkerClusterGroup>
+  );
 }
 
 export default function MapView() {
-  const { landmarks, selectLandmark } = useMapStore();
-
   return (
     <LeafletMap
       center={[51.505, -0.09]}
@@ -82,16 +81,7 @@ export default function MapView() {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <MapEvents />
-      <LandmarksFetcher />
-      <MarkerClusterGroup chunkedLoading>
-        {landmarks.map((landmark) => (
-          <LandmarkMarker
-            key={landmark.id}
-            landmark={landmark}
-            onClick={() => selectLandmark(landmark.id)}
-          />
-        ))}
-      </MarkerClusterGroup>
+      <LandmarkMarkers />
     </LeafletMap>
   );
 }

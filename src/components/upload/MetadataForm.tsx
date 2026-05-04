@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { TimeOfDay } from "@/types";
 
 interface MetadataFormProps {
@@ -14,34 +16,24 @@ interface MetadataFormProps {
 }
 
 interface LandmarkOption {
-  id: string;
+  _id: string;
   name: string;
-  city: string | null;
-  country: string | null;
+  city?: string | null;
+  country?: string | null;
 }
 
 export default function MetadataForm({ onLandmarkChange, onMetadataChange }: MetadataFormProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<LandmarkOption[]>([]);
   const [selectedLandmark, setSelectedLandmark] = useState<LandmarkOption | null>(null);
   const [timeOfDay, setTimeOfDay] = useState("");
   const [gearNotes, setGearNotes] = useState("");
   const [accessibilityNotes, setAccessibilityNotes] = useState("");
   const [tagsInput, setTagsInput] = useState("");
 
-  useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (searchResults.length > 0) setSearchResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      const res = await fetch(`/api/landmarks?q=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
-      setSearchResults(data.landmarks || []);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchResults.length]);
+  const searchResults = useQuery(
+    api.landmarks.search,
+    searchQuery.length >= 2 ? { query: searchQuery } : "skip"
+  );
 
   function notifyMetadata(updates: Partial<{ timeOfDay: string; gearNotes: string; accessibilityNotes: string; tagsInput: string }>) {
     const tod = updates.timeOfDay ?? timeOfDay;
@@ -59,9 +51,8 @@ export default function MetadataForm({ onLandmarkChange, onMetadataChange }: Met
 
   function selectResult(result: LandmarkOption) {
     setSelectedLandmark(result);
-    onLandmarkChange(result.id);
+    onLandmarkChange(result._id);
     setSearchQuery("");
-    setSearchResults([]);
   }
 
   return (
@@ -88,11 +79,11 @@ export default function MetadataForm({ onLandmarkChange, onMetadataChange }: Met
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            {searchResults.length > 0 && (
+            {searchResults && searchResults.length > 0 && (
               <div className="absolute top-full left-0 right-0 bg-white border rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto z-10">
                 {searchResults.map((r) => (
                   <button
-                    key={r.id}
+                    key={r._id}
                     onClick={() => selectResult(r)}
                     className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 border-b last:border-b-0"
                   >

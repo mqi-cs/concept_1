@@ -2,7 +2,7 @@
 
 import { Marker, Popup } from "react-leaflet";
 import L from "leaflet";
-import { Landmark, LandmarkCategory } from "@/types";
+import { LandmarkCategory } from "@/types";
 
 const CATEGORY_COLORS: Record<LandmarkCategory, string> = {
   [LandmarkCategory.MONUMENT]: "#ef4444",
@@ -36,7 +36,14 @@ function createIcon(category: string) {
 }
 
 interface LandmarkMarkerProps {
-  landmark: Landmark;
+  landmark: {
+    _id: string;
+    name: string;
+    category: string;
+    latitude: number;
+    longitude: number;
+    photoCount: number;
+  };
   onClick: () => void;
 }
 

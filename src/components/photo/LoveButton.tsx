@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 
 interface LoveButtonProps {
   photoId: string;
@@ -12,24 +15,22 @@ export default function LoveButton({ photoId, initialLoved, initialCount }: Love
   const [loved, setLoved] = useState(initialLoved);
   const [count, setCount] = useState(initialCount);
   const [pending, setPending] = useState(false);
+  const loveMutation = useMutation(api.photos.love);
+  const unloveMutation = useMutation(api.photos.unlove);
 
   async function toggle() {
     if (pending) return;
     setPending(true);
 
-    // Optimistic update
     const newLoved = !loved;
     setLoved(newLoved);
     setCount((c) => c + (newLoved ? 1 : -1));
 
     try {
-      const res = await fetch(`/api/photos/${photoId}/react`, {
-        method: newLoved ? "POST" : "DELETE",
-      });
-      if (!res.ok) {
-        // Revert on error
-        setLoved(!newLoved);
-        setCount((c) => c + (newLoved ? -1 : 1));
+      if (newLoved) {
+        await loveMutation({ photoId: photoId as Id<"photos"> });
+      } else {
+        await unloveMutation({ photoId: photoId as Id<"photos"> });
       }
     } catch {
       setLoved(!newLoved);

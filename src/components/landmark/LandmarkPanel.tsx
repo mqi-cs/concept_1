@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useMapStore } from "@/stores/mapStore";
 import PhotoStack from "./PhotoStack";
 import SortToggle from "./SortToggle";
-import type { Landmark, Photo } from "@/types";
+import { Id } from "../../../convex/_generated/dataModel";
 
 const CATEGORY_LABELS: Record<string, string> = {
   MONUMENT: "Monument",
@@ -20,37 +22,19 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function LandmarkPanel() {
   const { selectedLandmarkId, selectLandmark } = useMapStore();
-  const [landmark, setLandmark] = useState<Landmark | null>(null);
-  const [photos, setPhotos] = useState<Photo[]>([]);
   const [sort, setSort] = useState<"loved" | "recent">("loved");
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (!selectedLandmarkId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLandmark(null);
-      setPhotos([]);
-      return;
-    }
+  const landmark = useQuery(
+    api.landmarks.getById,
+    selectedLandmarkId ? { id: selectedLandmarkId as Id<"landmarks"> } : "skip"
+  );
 
-    const controller = new AbortController();
-    setLoading(true);
-
-    fetch(`/api/landmarks/${selectedLandmarkId}?sort=${sort}`, {
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setLandmark(data.landmark);
-        setPhotos(data.photos);
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError") console.error(err);
-      })
-      .finally(() => setLoading(false));
-
-    return () => controller.abort();
-  }, [selectedLandmarkId, sort]);
+  const photos = useQuery(
+    api.photos.getForLandmark,
+    selectedLandmarkId
+      ? { landmarkId: selectedLandmarkId as Id<"landmarks">, sort }
+      : "skip"
+  );
 
   if (!selectedLandmarkId) return null;
 
@@ -60,20 +44,18 @@ export default function LandmarkPanel() {
       <div className="p-4 border-b flex-shrink-0">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
-            {loading && !landmark ? (
+            {!landmark ? (
               <div className="h-6 w-48 bg-gray-200 animate-pulse rounded" />
             ) : (
               <>
-                <h2 className="text-lg font-bold truncate">{landmark?.name}</h2>
+                <h2 className="text-lg font-bold truncate">{landmark.name}</h2>
                 <div className="flex items-center gap-2 mt-1">
-                  {landmark?.category && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                      {CATEGORY_LABELS[landmark.category] || landmark.category}
-                    </span>
-                  )}
-                  {(landmark?.city || landmark?.country) && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                    {CATEGORY_LABELS[landmark.category] || landmark.category}
+                  </span>
+                  {(landmark.city || landmark.country) && (
                     <span className="text-xs text-gray-500">
-                      {[landmark?.city, landmark?.country].filter(Boolean).join(", ")}
+                      {[landmark.city, landmark.country].filter(Boolean).join(", ")}
                     </span>
                   )}
                 </div>
@@ -102,7 +84,7 @@ export default function LandmarkPanel() {
           </span>
           <SortToggle sort={sort} onSortChange={setSort} />
         </div>
-        <PhotoStack photos={photos} />
+        <PhotoStack photos={photos ?? []} />
       </div>
     </div>
   );

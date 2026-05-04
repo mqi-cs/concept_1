@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 import PhotoDropzone from "./PhotoDropzone";
 import MetadataForm from "./MetadataForm";
 
@@ -18,6 +21,9 @@ export default function UploadModal({ isOpen, onClose, defaultLandmarkId }: Uplo
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const generateUploadUrl = useMutation(api.photos.generateUploadUrl);
+  const createPhoto = useMutation(api.photos.create);
+
   const handleFileSelect = useCallback((f: File) => {
     setFile(f);
     setPreview(URL.createObjectURL(f));
@@ -33,18 +39,31 @@ export default function UploadModal({ isOpen, onClose, defaultLandmarkId }: Uplo
     setUploading(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("metadata", JSON.stringify({ ...metadata, landmarkId }));
+      // Get upload URL from Convex
+      const uploadUrl = await generateUploadUrl();
 
-      const res = await fetch("/api/photos", { method: "POST", body: formData });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Upload failed");
-      }
+      // Upload file to Convex storage
+      const result = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+
+      if (!result.ok) throw new Error("Upload failed");
+
+      const { storageId } = await result.json();
+
+      // Create photo record
+      await createPhoto({
+        storageId: storageId as Id<"_storage">,
+        landmarkId: landmarkId as Id<"landmarks">,
+        timeOfDay: (metadata.timeOfDay as string) || undefined,
+        gearNotes: (metadata.gearNotes as string) || undefined,
+        accessibilityNotes: (metadata.accessibilityNotes as string) || undefined,
+        tags: (metadata.tags as string[]) || [],
+      });
 
       onClose();
-      // Reset
       setFile(null);
       setPreview(null);
       setLandmarkId(defaultLandmarkId || "");
