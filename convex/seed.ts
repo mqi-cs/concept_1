@@ -37,15 +37,13 @@ export const seedLandmarks = mutation({
       systemUser = await ctx.db.get(id);
     }
 
+    // Get all existing landmark names to avoid duplicates
+    const allLandmarks = await ctx.db.query("landmarks").collect();
+    const existingNames = new Set(allLandmarks.map((l) => l.name));
+
     let count = 0;
     for (const landmark of LANDMARKS) {
-      // Check if already seeded
-      const existing = await ctx.db
-        .query("landmarks")
-        .withSearchIndex("search_name", (q) => q.search("name", landmark.name))
-        .first();
-
-      if (!existing) {
+      if (!existingNames.has(landmark.name)) {
         await ctx.db.insert("landmarks", {
           ...landmark,
           createdBy: systemUser!._id,
