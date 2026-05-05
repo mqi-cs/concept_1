@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useRouter } from "next/navigation";
 
 interface AuthFormProps {
   mode: "login" | "register";
@@ -15,7 +14,6 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuthActions();
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,10 +27,9 @@ export default function AuthForm({ mode }: AuthFormProps) {
         flow: mode === "register" ? "signUp" : "signIn",
         ...(mode === "register" ? { name: displayName } : {}),
       });
-      router.push("/");
+      window.location.href = "/";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
       setLoading(false);
     }
   }
@@ -71,11 +68,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       <input
         type="password"
-        placeholder="Password"
+        placeholder="Password (min 8 characters)"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         className="border rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        minLength={6}
+        minLength={8}
         required
       />
 

@@ -69,8 +69,50 @@ function LandmarkMarkers() {
   );
 }
 
+interface PhotoClusterLike {
+  getChildCount(): number;
+  getAllChildMarkers(): L.Marker[];
+}
+
+function createPhotoClusterIcon(cluster: PhotoClusterLike) {
+  const count = cluster.getChildCount();
+  const firstChild = cluster.getAllChildMarkers()[0];
+  const cover = (firstChild?.options?.icon as L.DivIcon | undefined)?.options?.html ?? "";
+  const coverMatch = typeof cover === "string" ? cover.match(/url\('([^']+)'\)/) : null;
+  const url = coverMatch?.[1];
+  return L.divIcon({
+    className: "photo-cluster",
+    html: `<div style="
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      border: 2px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+      overflow: hidden;
+      background: #d1d5db;
+      ${url ? `background-image: url('${url}'); background-size: cover; background-position: center;` : ""}
+    ">
+      <div style="
+        position: absolute;
+        bottom: -2px;
+        right: -2px;
+        background: #2563eb;
+        color: white;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 8px;
+        border: 2px solid white;
+      ">${count}</div>
+    </div>`,
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+  });
+}
+
 function PhotoMarkers() {
-  const { bounds } = useMapStore();
+  const { bounds, selectPhoto } = useMapStore();
 
   const photos = useQuery(
     api.photos.getInBBox,
@@ -80,11 +122,20 @@ function PhotoMarkers() {
   if (!photos) return null;
 
   return (
-    <>
+    <MarkerClusterGroup
+      chunkedLoading
+      iconCreateFunction={createPhotoClusterIcon}
+      maxClusterRadius={60}
+      showCoverageOnHover={false}
+    >
       {photos.map((photo) => (
-        <PhotoMarker key={photo._id} photo={photo} />
+        <PhotoMarker
+          key={photo._id}
+          photo={photo}
+          onClick={() => selectPhoto(photo._id)}
+        />
       ))}
-    </>
+    </MarkerClusterGroup>
   );
 }
 

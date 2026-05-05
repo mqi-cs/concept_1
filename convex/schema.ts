@@ -31,7 +31,7 @@ export default defineSchema({
     landmarkId: v.optional(v.id("landmarks")),
     latitude: v.number(),
     longitude: v.number(),
-    uploadedBy: v.id("users"),
+    uploadedBy: v.optional(v.id("users")),
     timeOfDay: v.optional(v.string()),
     gearNotes: v.optional(v.string()),
     accessibilityNotes: v.optional(v.string()),

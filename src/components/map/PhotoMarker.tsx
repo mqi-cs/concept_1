@@ -1,6 +1,6 @@
 "use client";
 
-import { Marker, Popup } from "react-leaflet";
+import { Marker } from "react-leaflet";
 import L from "leaflet";
 
 function createPhotoIcon(url: string | null) {
@@ -18,7 +18,6 @@ function createPhotoIcon(url: string | null) {
     "></div>`,
     iconSize: [40, 40],
     iconAnchor: [20, 20],
-    popupAnchor: [0, -20],
   });
 }
 
@@ -30,25 +29,15 @@ interface PhotoMarkerProps {
     url: string | null;
     loveCount: number;
   };
+  onClick: () => void;
 }
 
-export default function PhotoMarker({ photo }: PhotoMarkerProps) {
+export default function PhotoMarker({ photo, onClick }: PhotoMarkerProps) {
   return (
     <Marker
       position={[photo.latitude, photo.longitude]}
       icon={createPhotoIcon(photo.url)}
-    >
-      <Popup>
-        <div className="text-sm">
-          {photo.url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photo.url} alt="" className="max-w-[200px] rounded mb-2" />
-          )}
-          <span className="text-gray-500">
-            {photo.loveCount} love{photo.loveCount !== 1 ? "s" : ""}
-          </span>
-        </div>
-      </Popup>
-    </Marker>
+      eventHandlers={{ click: onClick }}
+    />
   );
 }

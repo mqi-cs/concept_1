@@ -27,7 +27,7 @@ export const getForLandmark = query({
 
     return await Promise.all(
       photos.map(async (photo) => {
-        const uploader = await ctx.db.get(photo.uploadedBy);
+        const uploader = photo.uploadedBy ? await ctx.db.get(photo.uploadedBy) : null;
         let lovedByUser = false;
         if (userId) {
           const reaction = await ctx.db
@@ -51,25 +51,6 @@ export const getForLandmark = query({
 
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Unauthorized");
-
-    // Rate limit: 20 per day
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const todayPhotos = await ctx.db
-      .query("photos")
-      .withIndex("by_uploader_time", (q) => q.eq("uploadedBy", userId))
-      .order("desc")
-      .take(20);
-
-    const todayCount = todayPhotos.filter(
-      (p) => p._creationTime >= startOfDay.getTime()
-    ).length;
-
-    if (todayCount >= 20) throw new Error("Daily upload limit reached (20/day)");
-
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -87,7 +68,6 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Unauthorized");
 
     const url = await ctx.storage.getUrl(args.storageId);
     if (!url) throw new Error("Storage file not found");
@@ -98,7 +78,7 @@ export const create = mutation({
       latitude: args.latitude,
       longitude: args.longitude,
       landmarkId: args.landmarkId,
-      uploadedBy: userId,
+      uploadedBy: userId ?? undefined,
       timeOfDay: args.timeOfDay,
       gearNotes: args.gearNotes,
       accessibilityNotes: args.accessibilityNotes,
@@ -116,6 +96,34 @@ export const create = mutation({
     }
 
     return photoId;
+  },
+});
+
+export const getById = query({
+  args: { id: v.id("photos") },
+  handler: async (ctx, args) => {
+    const photo = await ctx.db.get(args.id);
+    if (!photo) return null;
+
+    const userId = await getAuthUserId(ctx);
+    const uploader = photo.uploadedBy ? await ctx.db.get(photo.uploadedBy) : null;
+    let lovedByUser = false;
+    if (userId) {
+      const reaction = await ctx.db
+        .query("reactions")
+        .withIndex("by_photo_user", (q) =>
+          q.eq("photoId", photo._id).eq("userId", userId)
+        )
+        .first();
+      lovedByUser = !!reaction;
+    }
+
+    return {
+      ...photo,
+      url: await ctx.storage.getUrl(photo.storageId),
+      uploaderName: uploader?.displayName ?? null,
+      lovedByUser,
+    };
   },
 });
 

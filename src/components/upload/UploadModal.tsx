@@ -9,6 +9,7 @@ import { useMapStore } from "@/stores/mapStore";
 import { extractPhotoLocation } from "@/lib/exif";
 import PhotoDropzone from "./PhotoDropzone";
 import MetadataForm from "./MetadataForm";
+import PlaceSearchModal from "./PlaceSearchModal";
 
 const LocationPicker = dynamic(() => import("./LocationPicker"), { ssr: false });
 
@@ -22,6 +23,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [preview, setPreview] = useState<string | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [hasExif, setHasExif] = useState(false);
+  const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [metadata, setMetadata] = useState<Record<string, unknown>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,19 +44,19 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         setHasExif(true);
       } else {
         setHasExif(false);
-        if (!location) {
-          const fallback = bounds
-            ? {
-                lat: (bounds.north + bounds.south) / 2,
-                lng: (bounds.east + bounds.west) / 2,
-              }
-            : { lat: 51.505, lng: -0.09 };
-          setLocation(fallback);
-        }
+        setPlaceSearchOpen(true);
       }
     },
-    [bounds, location]
+    []
   );
+
+  function applyFallbackLocation() {
+    if (location) return;
+    const fallback = bounds
+      ? { lat: (bounds.north + bounds.south) / 2, lng: (bounds.east + bounds.west) / 2 }
+      : { lat: 51.505, lng: -0.09 };
+    setLocation(fallback);
+  }
 
   const handleMetadataChange = useCallback((m: Record<string, unknown>) => {
     setMetadata(m);
@@ -65,6 +67,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     setPreview(null);
     setLocation(null);
     setHasExif(false);
+    setPlaceSearchOpen(false);
     setMetadata({});
     setError(null);
   }
@@ -152,6 +155,17 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
           </div>
         </div>
       </div>
+
+      {placeSearchOpen && (
+        <PlaceSearchModal
+          isOpen
+          onClose={() => {
+            setPlaceSearchOpen(false);
+            applyFallbackLocation();
+          }}
+          onSelect={(lat, lng) => setLocation({ lat, lng })}
+        />
+      )}
     </div>
   );
 }
