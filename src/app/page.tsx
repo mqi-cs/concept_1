@@ -2,8 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useConvexAuth } from "convex/react";
 import UserMenu from "@/components/UserMenu";
 import LandmarkPanel from "@/components/landmark/LandmarkPanel";
 import UploadModal from "@/components/upload/UploadModal";
@@ -22,8 +21,7 @@ const MapView = dynamic(() => import("@/components/map/MapContainer"), {
 export default function Home() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { selectedPhotoId, selectPhoto } = useMapStore();
-  const user = useQuery(api.users.current);
-  const signedIn = !!user;
+  const { isAuthenticated, isLoading } = useConvexAuth();
 
   return (
     <div className="h-full relative">
@@ -35,11 +33,11 @@ export default function Home() {
           GeoShot
         </h1>
         <div className="flex items-center gap-2 pointer-events-auto">
-          {user !== undefined && (
+          {!isLoading && (
             <button
               onClick={() => setUploadOpen(true)}
-              disabled={!signedIn}
-              title={signedIn ? undefined : "Sign in to upload"}
+              disabled={!isAuthenticated}
+              title={isAuthenticated ? undefined : "Sign in to upload"}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
             >
               + Upload
@@ -53,7 +51,7 @@ export default function Home() {
       <LandmarkPanel />
 
       {/* Upload modal */}
-      {signedIn && (
+      {isAuthenticated && (
         <UploadModal
           isOpen={uploadOpen}
           onClose={() => setUploadOpen(false)}
