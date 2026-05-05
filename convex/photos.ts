@@ -77,7 +77,9 @@ export const generateUploadUrl = mutation({
 export const create = mutation({
   args: {
     storageId: v.id("_storage"),
-    landmarkId: v.id("landmarks"),
+    latitude: v.number(),
+    longitude: v.number(),
+    landmarkId: v.optional(v.id("landmarks")),
     timeOfDay: v.optional(v.string()),
     gearNotes: v.optional(v.string()),
     accessibilityNotes: v.optional(v.string()),
@@ -93,6 +95,8 @@ export const create = mutation({
     const photoId = await ctx.db.insert("photos", {
       url,
       storageId: args.storageId,
+      latitude: args.latitude,
+      longitude: args.longitude,
       landmarkId: args.landmarkId,
       uploadedBy: userId,
       timeOfDay: args.timeOfDay,
@@ -102,15 +106,48 @@ export const create = mutation({
       loveCount: 0,
     });
 
-    // Increment photo count on landmark
-    const landmark = await ctx.db.get(args.landmarkId);
-    if (landmark) {
-      await ctx.db.patch(args.landmarkId, {
-        photoCount: landmark.photoCount + 1,
-      });
+    if (args.landmarkId) {
+      const landmark = await ctx.db.get(args.landmarkId);
+      if (landmark) {
+        await ctx.db.patch(args.landmarkId, {
+          photoCount: landmark.photoCount + 1,
+        });
+      }
     }
 
     return photoId;
+  },
+});
+
+export const getInBBox = query({
+  args: {
+    west: v.number(),
+    south: v.number(),
+    east: v.number(),
+    north: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const photos = await ctx.db
+      .query("photos")
+      .withIndex("by_location", (q) =>
+        q.gte("latitude", args.south).lte("latitude", args.north)
+      )
+      .take(500);
+
+    const filtered = photos
+      .filter((p) => p.longitude >= args.west && p.longitude <= args.east)
+      .slice(0, 200);
+
+    return await Promise.all(
+      filtered.map(async (p) => ({
+        _id: p._id,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        url: await ctx.storage.getUrl(p.storageId),
+        loveCount: p.loveCount,
+        landmarkId: p.landmarkId,
+      }))
+    );
   },
 });
 
@@ -137,12 +174,13 @@ export const remove = mutation({
       await ctx.db.delete(reaction._id);
     }
 
-    // Decrement photo count
-    const landmark = await ctx.db.get(photo.landmarkId);
-    if (landmark) {
-      await ctx.db.patch(photo.landmarkId, {
-        photoCount: Math.max(0, landmark.photoCount - 1),
-      });
+    if (photo.landmarkId) {
+      const landmark = await ctx.db.get(photo.landmarkId);
+      if (landmark) {
+        await ctx.db.patch(photo.landmarkId, {
+          photoCount: Math.max(0, landmark.photoCount - 1),
+        });
+      }
     }
 
     await ctx.db.delete(args.id);

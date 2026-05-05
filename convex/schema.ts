@@ -28,7 +28,9 @@ export default defineSchema({
   photos: defineTable({
     url: v.string(),
     storageId: v.id("_storage"),
-    landmarkId: v.id("landmarks"),
+    landmarkId: v.optional(v.id("landmarks")),
+    latitude: v.number(),
+    longitude: v.number(),
     uploadedBy: v.id("users"),
     timeOfDay: v.optional(v.string()),
     gearNotes: v.optional(v.string()),
@@ -38,7 +40,8 @@ export default defineSchema({
   })
     .index("by_landmark_loves", ["landmarkId", "loveCount"])
     .index("by_landmark_time", ["landmarkId"])
-    .index("by_uploader_time", ["uploadedBy"]),
+    .index("by_uploader_time", ["uploadedBy"])
+    .index("by_location", ["latitude", "longitude"]),
 
   reactions: defineTable({
     photoId: v.id("photos"),

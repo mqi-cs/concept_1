@@ -5,7 +5,6 @@ import { useState } from "react";
 import UserMenu from "@/components/UserMenu";
 import LandmarkPanel from "@/components/landmark/LandmarkPanel";
 import UploadModal from "@/components/upload/UploadModal";
-import { useMapStore } from "@/stores/mapStore";
 
 const MapView = dynamic(() => import("@/components/map/MapContainer"), {
   ssr: false,
@@ -18,7 +17,6 @@ const MapView = dynamic(() => import("@/components/map/MapContainer"), {
 
 export default function Home() {
   const [uploadOpen, setUploadOpen] = useState(false);
-  const { selectedLandmarkId } = useMapStore();
 
   return (
     <div className="h-full relative">
@@ -47,7 +45,6 @@ export default function Home() {
       <UploadModal
         isOpen={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        defaultLandmarkId={selectedLandmarkId || undefined}
       />
     </div>
   );

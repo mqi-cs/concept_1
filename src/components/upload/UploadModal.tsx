@@ -1,48 +1,82 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { useMapStore } from "@/stores/mapStore";
+import { extractPhotoLocation } from "@/lib/exif";
 import PhotoDropzone from "./PhotoDropzone";
 import MetadataForm from "./MetadataForm";
+
+const LocationPicker = dynamic(() => import("./LocationPicker"), { ssr: false });
 
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultLandmarkId?: string;
 }
 
-export default function UploadModal({ isOpen, onClose, defaultLandmarkId }: UploadModalProps) {
+export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [landmarkId, setLandmarkId] = useState(defaultLandmarkId || "");
+  const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [hasExif, setHasExif] = useState(false);
   const [metadata, setMetadata] = useState<Record<string, unknown>>({});
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generateUploadUrl = useMutation(api.photos.generateUploadUrl);
   const createPhoto = useMutation(api.photos.create);
+  const { bounds } = useMapStore();
 
-  const handleFileSelect = useCallback((f: File) => {
-    setFile(f);
-    setPreview(URL.createObjectURL(f));
-  }, []);
+  const handleFileSelect = useCallback(
+    async (f: File) => {
+      setFile(f);
+      setPreview(URL.createObjectURL(f));
+      setError(null);
+
+      const exif = await extractPhotoLocation(f);
+      if (exif) {
+        setLocation({ lat: exif.lat, lng: exif.lng });
+        setHasExif(true);
+      } else {
+        setHasExif(false);
+        if (!location) {
+          const fallback = bounds
+            ? {
+                lat: (bounds.north + bounds.south) / 2,
+                lng: (bounds.east + bounds.west) / 2,
+              }
+            : { lat: 51.505, lng: -0.09 };
+          setLocation(fallback);
+        }
+      }
+    },
+    [bounds, location]
+  );
 
   const handleMetadataChange = useCallback((m: Record<string, unknown>) => {
     setMetadata(m);
   }, []);
 
+  function reset() {
+    setFile(null);
+    setPreview(null);
+    setLocation(null);
+    setHasExif(false);
+    setMetadata({});
+    setError(null);
+  }
+
   async function handleUpload() {
-    if (!file || !landmarkId) return;
+    if (!file || !location) return;
     setError(null);
     setUploading(true);
 
     try {
-      // Get upload URL from Convex
       const uploadUrl = await generateUploadUrl();
 
-      // Upload file to Convex storage
       const result = await fetch(uploadUrl, {
         method: "POST",
         headers: { "Content-Type": file.type },
@@ -53,20 +87,18 @@ export default function UploadModal({ isOpen, onClose, defaultLandmarkId }: Uplo
 
       const { storageId } = await result.json();
 
-      // Create photo record
       await createPhoto({
         storageId: storageId as Id<"_storage">,
-        landmarkId: landmarkId as Id<"landmarks">,
+        latitude: location.lat,
+        longitude: location.lng,
         timeOfDay: (metadata.timeOfDay as string) || undefined,
         gearNotes: (metadata.gearNotes as string) || undefined,
         accessibilityNotes: (metadata.accessibilityNotes as string) || undefined,
         tags: (metadata.tags as string[]) || [],
       });
 
+      reset();
       onClose();
-      setFile(null);
-      setPreview(null);
-      setLandmarkId(defaultLandmarkId || "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -99,14 +131,20 @@ export default function UploadModal({ isOpen, onClose, defaultLandmarkId }: Uplo
               <PhotoDropzone onFileSelect={handleFileSelect} preview={preview} />
             </div>
 
-            <MetadataForm
-              onLandmarkChange={setLandmarkId}
-              onMetadataChange={handleMetadataChange}
-            />
+            {location && (
+              <LocationPicker
+                lat={location.lat}
+                lng={location.lng}
+                hasExif={hasExif}
+                onChange={(lat, lng) => setLocation({ lat, lng })}
+              />
+            )}
+
+            <MetadataForm onMetadataChange={handleMetadataChange} />
 
             <button
               onClick={handleUpload}
-              disabled={!file || !landmarkId || uploading}
+              disabled={!file || !location || uploading}
               className="w-full bg-blue-600 text-white rounded-lg px-4 py-3 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {uploading ? "Uploading..." : "Upload Photo"}

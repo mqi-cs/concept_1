@@ -7,6 +7,7 @@ import MarkerClusterGroup from "react-leaflet-cluster";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import LandmarkMarker from "./LandmarkMarker";
+import PhotoMarker from "./PhotoMarker";
 import { useMapStore } from "@/stores/mapStore";
 import "leaflet/dist/leaflet.css";
 
@@ -68,6 +69,25 @@ function LandmarkMarkers() {
   );
 }
 
+function PhotoMarkers() {
+  const { bounds } = useMapStore();
+
+  const photos = useQuery(
+    api.photos.getInBBox,
+    bounds ? bounds : "skip"
+  );
+
+  if (!photos) return null;
+
+  return (
+    <>
+      {photos.map((photo) => (
+        <PhotoMarker key={photo._id} photo={photo} />
+      ))}
+    </>
+  );
+}
+
 export default function MapView() {
   return (
     <LeafletMap
@@ -82,6 +102,7 @@ export default function MapView() {
       />
       <MapEvents />
       <LandmarkMarkers />
+      <PhotoMarkers />
     </LeafletMap>
   );
 }
