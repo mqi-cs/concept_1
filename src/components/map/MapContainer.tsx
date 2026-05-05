@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Marker,
   NavigationControl,
@@ -12,7 +12,14 @@ import { api } from "../../../convex/_generated/api";
 import LandmarkMarker from "./LandmarkMarker";
 import PhotoMarker from "./PhotoMarker";
 import { useMapStore } from "@/stores/mapStore";
+import { useSupercluster, type PointFeature } from "@/lib/useSupercluster";
 import "maplibre-gl/dist/maplibre-gl.css";
+
+type PhotoProps = {
+  _id: string;
+  url: string | null;
+  loveCount: number;
+};
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const FALLBACK_STYLE: maplibregl.StyleSpecification = {
@@ -68,14 +75,74 @@ function remove3DBuildings(map: maplibregl.Map) {
   if (map.getLayer("3d-buildings")) map.removeLayer("3d-buildings");
 }
 
+function ClusterMarker({ count, coverUrl }: { count: number; coverUrl: string | null }) {
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: 48,
+        height: 48,
+        borderRadius: 10,
+        border: "2px solid white",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.45)",
+        overflow: "hidden",
+        background: coverUrl ? `center/cover no-repeat url('${coverUrl}')` : "#d1d5db",
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          bottom: -2,
+          right: -2,
+          background: "#2563eb",
+          color: "white",
+          fontSize: 11,
+          fontWeight: 600,
+          padding: "2px 6px",
+          borderRadius: 8,
+          border: "2px solid white",
+        }}
+      >
+        {count}
+      </div>
+    </div>
+  );
+}
+
 export default function MapView() {
   const mapRef = useRef<MapRef>(null);
-  const { bounds, setBounds, setZoom, selectLandmark, selectPhoto } = useMapStore();
+  const { bounds, zoom, setBounds, setZoom, selectLandmark, selectPhoto } = useMapStore();
   const [is3D, setIs3D] = useState(false);
   const [styleSpec, setStyleSpec] = useState<string | maplibregl.StyleSpecification>(MAP_STYLE);
 
   const landmarks = useQuery(api.landmarks.getInBBox, bounds ?? "skip");
   const photos = useQuery(api.photos.getInBBox, bounds ?? "skip");
+
+  const photoPoints = useMemo<PointFeature<PhotoProps>[]>(
+    () =>
+      (photos ?? []).map((p) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.longitude, p.latitude] },
+        properties: { _id: p._id, url: p.url, loveCount: p.loveCount },
+      })),
+    [photos]
+  );
+
+  const { clusters: photoClusters, index: photoIndex } = useSupercluster<PhotoProps>({
+    points: photoPoints,
+    bounds,
+    zoom,
+    radius: 60,
+    maxZoom: 18,
+  });
+
+  function expandCluster(clusterId: number, lng: number, lat: number) {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const targetZoom = Math.min(photoIndex.getClusterExpansionZoom(clusterId), 20);
+    map.easeTo({ center: [lng, lat], zoom: targetZoom, duration: 500 });
+  }
 
   const updateBounds = useCallback(() => {
     const map = mapRef.current?.getMap();
@@ -153,20 +220,43 @@ export default function MapView() {
           </Marker>
         ))}
 
-        {photos?.map((p) => (
-          <Marker
-            key={p._id}
-            longitude={p.longitude}
-            latitude={p.latitude}
-            anchor="center"
-            onClick={(e) => {
-              e.originalEvent.stopPropagation();
-              selectPhoto(p._id);
-            }}
-          >
-            <PhotoMarker photo={p} />
-          </Marker>
-        ))}
+        {photoClusters.map((feature) => {
+          const [lng, lat] = feature.geometry.coordinates;
+          const props = feature.properties;
+          if ("cluster" in props && props.cluster) {
+            const leaves = photoIndex.getLeaves(props.cluster_id, 1) as PointFeature<PhotoProps>[];
+            const coverUrl = leaves[0]?.properties.url ?? null;
+            return (
+              <Marker
+                key={`cluster-${props.cluster_id}`}
+                longitude={lng}
+                latitude={lat}
+                anchor="center"
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  expandCluster(props.cluster_id, lng, lat);
+                }}
+              >
+                <ClusterMarker count={props.point_count} coverUrl={coverUrl} />
+              </Marker>
+            );
+          }
+          const photo = props as PhotoProps;
+          return (
+            <Marker
+              key={photo._id}
+              longitude={lng}
+              latitude={lat}
+              anchor="center"
+              onClick={(e) => {
+                e.originalEvent.stopPropagation();
+                selectPhoto(photo._id);
+              }}
+            >
+              <PhotoMarker photo={photo} />
+            </Marker>
+          );
+        })}
       </Map>
 
       <button
