@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useQuery } from "convex/react";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import LoveButton from "./LoveButton";
@@ -16,6 +16,21 @@ export default function PhotoLightbox({ photoId, onClose }: PhotoLightboxProps) 
     api.photos.getById,
     photoId ? { id: photoId as Id<"photos"> } : "skip"
   );
+  const removePhoto = useMutation(api.photos.remove);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!photo || !photo.isOwn || deleting) return;
+    if (!window.confirm("Delete this photo? This can't be undone.")) return;
+    setDeleting(true);
+    try {
+      await removePhoto({ id: photo._id });
+      onClose();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to delete photo");
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     if (!photoId) return;
@@ -65,11 +80,22 @@ export default function PhotoLightbox({ photoId, onClose }: PhotoLightboxProps) 
                     <span className="italic">Anonymous upload</span>
                   )}
                 </div>
-                <LoveButton
-                  photoId={photo._id}
-                  initialLoved={photo.lovedByUser}
-                  initialCount={photo.loveCount}
-                />
+                <div className="flex items-center gap-3">
+                  <LoveButton
+                    photoId={photo._id}
+                    initialLoved={photo.lovedByUser}
+                    initialCount={photo.loveCount}
+                  />
+                  {photo.isOwn && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={deleting}
+                      className="text-sm text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleting ? "Deleting..." : "Delete"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">

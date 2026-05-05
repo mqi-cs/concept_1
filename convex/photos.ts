@@ -126,6 +126,7 @@ export const getById = query({
       url: await ctx.storage.getUrl(photo.storageId),
       uploaderName: uploader?.displayName ?? null,
       lovedByUser,
+      isOwn: !!userId && photo.uploadedBy === userId,
     };
   },
 });
