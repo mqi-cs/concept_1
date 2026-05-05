@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useMapStore } from "@/stores/mapStore";
 
 interface PlaceResult {
   display_name: string;
@@ -16,13 +17,16 @@ interface PlaceSearchModalProps {
 }
 
 export default function PlaceSearchModal({ isOpen, onClose, onSelect }: PlaceSearchModalProps) {
+  const { bounds } = useMapStore();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlaceResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState(false);
 
   const trimmed = query.trim();
   const queryActive = trimmed.length >= 3;
   const visibleResults = queryActive ? results : [];
+  const useViewBox = !!bounds && !globalSearch;
 
   useEffect(() => {
     if (!queryActive) return;
@@ -30,8 +34,17 @@ export default function PlaceSearchModal({ isOpen, onClose, onSelect }: PlaceSea
     const timer = setTimeout(async () => {
       setLoading(true);
       try {
+        const params = new URLSearchParams({
+          q: trimmed,
+          format: "json",
+          limit: "6",
+          addressdetails: "0",
+        });
+        if (useViewBox && bounds) {
+          params.set("viewbox", `${bounds.west},${bounds.south},${bounds.east},${bounds.north}`);
+        }
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(trimmed)}&format=json&limit=6&addressdetails=0`,
+          `https://nominatim.openstreetmap.org/search?${params.toString()}`,
           { signal: controller.signal, headers: { Accept: "application/json" } }
         );
         if (res.ok) {
@@ -47,7 +60,7 @@ export default function PlaceSearchModal({ isOpen, onClose, onSelect }: PlaceSea
       clearTimeout(timer);
       controller.abort();
     };
-  }, [trimmed, queryActive]);
+  }, [trimmed, queryActive, useViewBox, bounds]);
 
   if (!isOpen) return null;
 
@@ -68,6 +81,21 @@ export default function PlaceSearchModal({ isOpen, onClose, onSelect }: PlaceSea
             onChange={(e) => setQuery(e.target.value)}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
+          {bounds && (
+            <div className="flex items-center justify-between mt-2 text-xs">
+              <span className="text-gray-500">
+                {globalSearch ? "Searching worldwide" : "Nearby results first"}
+              </span>
+              <button
+                onClick={() => setGlobalSearch((v) => !v)}
+                className="text-blue-600 hover:underline"
+              >
+                {globalSearch ? "Bias to map view" : "Search worldwide"}
+              </button>
+            </div>
+          )}
+
           <div className="mt-3 max-h-64 overflow-y-auto">
             {loading && <p className="text-xs text-gray-400 px-1 py-2">Searching...</p>}
             {!loading && queryActive && visibleResults.length === 0 && (
