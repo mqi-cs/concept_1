@@ -36,21 +36,14 @@ export default function Home() {
         </h1>
         <div className="flex items-center gap-2 pointer-events-auto">
           {user !== undefined && (
-            signedIn ? (
-              <button
-                onClick={() => setUploadOpen(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors"
-              >
-                + Upload
-              </button>
-            ) : (
-              <a
-                href="/register"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors"
-              >
-                Sign up to upload
-              </a>
-            )
+            <button
+              onClick={() => setUploadOpen(true)}
+              disabled={!signedIn}
+              title={signedIn ? undefined : "Sign in to upload"}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+            >
+              + Upload
+            </button>
           )}
           <UserMenu />
         </div>
