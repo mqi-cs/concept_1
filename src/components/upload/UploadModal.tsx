@@ -34,9 +34,33 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
 
   const handleFileSelect = useCallback(
     async (f: File) => {
-      setFile(f);
-      setPreview(URL.createObjectURL(f));
       setError(null);
+
+      if (!f.type.startsWith("image/")) {
+        setFile(null);
+        setPreview(null);
+        setError("That file isn't an image. Please choose a JPEG, PNG, or HEIC.");
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(f);
+      const loadable = await new Promise<boolean>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(true);
+        img.onerror = () => resolve(false);
+        img.src = objectUrl;
+      });
+
+      if (!loadable) {
+        URL.revokeObjectURL(objectUrl);
+        setFile(null);
+        setPreview(null);
+        setError("Couldn't decode this image. The file may be corrupted or in an unsupported format.");
+        return;
+      }
+
+      setFile(f);
+      setPreview(objectUrl);
 
       const exif = await extractPhotoLocation(f);
       if (exif) {
