@@ -51,6 +51,8 @@ export const getForLandmark = query({
 
 export const generateUploadUrl = mutation({
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Sign in to upload");
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -68,6 +70,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Sign in to upload");
 
     const url = await ctx.storage.getUrl(args.storageId);
     if (!url) throw new Error("Storage file not found");
@@ -78,7 +81,7 @@ export const create = mutation({
       latitude: args.latitude,
       longitude: args.longitude,
       landmarkId: args.landmarkId,
-      uploadedBy: userId ?? undefined,
+      uploadedBy: userId,
       timeOfDay: args.timeOfDay,
       gearNotes: args.gearNotes,
       accessibilityNotes: args.accessibilityNotes,

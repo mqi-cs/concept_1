@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import UserMenu from "@/components/UserMenu";
 import LandmarkPanel from "@/components/landmark/LandmarkPanel";
 import UploadModal from "@/components/upload/UploadModal";
@@ -20,6 +22,8 @@ const MapView = dynamic(() => import("@/components/map/MapContainer"), {
 export default function Home() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { selectedPhotoId, selectPhoto } = useMapStore();
+  const user = useQuery(api.users.current);
+  const signedIn = !!user;
 
   return (
     <div className="h-full relative">
@@ -31,12 +35,23 @@ export default function Home() {
           GeoShot
         </h1>
         <div className="flex items-center gap-2 pointer-events-auto">
-          <button
-            onClick={() => setUploadOpen(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors"
-          >
-            + Upload
-          </button>
+          {user !== undefined && (
+            signedIn ? (
+              <button
+                onClick={() => setUploadOpen(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors"
+              >
+                + Upload
+              </button>
+            ) : (
+              <a
+                href="/register"
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors"
+              >
+                Sign up to upload
+              </a>
+            )
+          )}
           <UserMenu />
         </div>
       </div>
@@ -45,10 +60,12 @@ export default function Home() {
       <LandmarkPanel />
 
       {/* Upload modal */}
-      <UploadModal
-        isOpen={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-      />
+      {signedIn && (
+        <UploadModal
+          isOpen={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
 
       <PhotoLightbox
         photoId={selectedPhotoId}
