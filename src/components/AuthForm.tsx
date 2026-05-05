@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useConvexAuth } from "convex/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface AuthFormProps {
   mode: "login" | "register";
@@ -12,14 +15,19 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { signIn } = useAuthActions();
+  const { isAuthenticated } = useConvexAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isAuthenticated) router.replace("/");
+  }, [isAuthenticated, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-
+    setSubmitting(true);
     try {
       await signIn("password", {
         email,
@@ -27,10 +35,11 @@ export default function AuthForm({ mode }: AuthFormProps) {
         flow: mode === "register" ? "signUp" : "signIn",
         ...(mode === "register" ? { name: displayName } : {}),
       });
-      window.location.href = "/";
+      // Auth state flip will trigger the useEffect above to redirect.
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setLoading(false);
+      const raw = err instanceof Error ? err.message : "Something went wrong";
+      setError(friendlyError(raw, mode));
+      setSubmitting(false);
     }
   }
 
@@ -78,10 +87,10 @@ export default function AuthForm({ mode }: AuthFormProps) {
 
       <button
         type="submit"
-        disabled={loading}
+        disabled={submitting}
         className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
-        {loading ? "Loading..." : mode === "login" ? "Sign In" : "Sign Up"}
+        {submitting ? "Loading..." : mode === "login" ? "Sign In" : "Sign Up"}
       </button>
 
       <p className="text-sm text-gray-500 text-center">
@@ -99,4 +108,16 @@ export default function AuthForm({ mode }: AuthFormProps) {
       </p>
     </form>
   );
+}
+
+function friendlyError(raw: string, mode: "login" | "register"): string {
+  if (raw.includes("InvalidSecret")) return "Wrong password.";
+  if (raw.includes("InvalidAccountId")) return "No account with that email.";
+  if (raw.includes("Account") && raw.includes("already exists")) {
+    return mode === "register"
+      ? "An account with that email already exists. Try signing in."
+      : raw;
+  }
+  if (raw.includes("Invalid password")) return "Password must be at least 8 characters.";
+  return raw.replace(/^\[CONVEX [^\]]+\]\s*/, "").replace(/^Uncaught Error:\s*/, "");
 }

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useConvexAuth } from "convex/react";
+import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 import UserMenu from "@/components/UserMenu";
 import LandmarkPanel from "@/components/landmark/LandmarkPanel";
 import UploadModal from "@/components/upload/UploadModal";
@@ -18,50 +18,52 @@ const MapView = dynamic(() => import("@/components/map/MapContainer"), {
   ),
 });
 
+function UploadButton({ onClick, enabled }: { onClick: () => void; enabled: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!enabled}
+      title={enabled ? undefined : "Sign in to upload"}
+      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+    >
+      + Upload
+    </button>
+  );
+}
+
 export default function Home() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const { selectedPhotoId, selectPhoto } = useMapStore();
-  const { isAuthenticated, isLoading } = useConvexAuth();
 
   return (
     <div className="h-full relative">
       <MapView />
 
-      {/* Top bar */}
       <div className="absolute top-4 left-4 right-4 z-[1000] flex items-center justify-between pointer-events-none">
         <h1 className="text-xl font-bold text-gray-800 bg-white/90 backdrop-blur px-4 py-2 rounded-lg shadow pointer-events-auto">
           GeoShot
         </h1>
         <div className="flex items-center gap-2 pointer-events-auto">
-          {!isLoading && (
-            <button
-              onClick={() => setUploadOpen(true)}
-              disabled={!isAuthenticated}
-              title={isAuthenticated ? undefined : "Sign in to upload"}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium shadow hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
-            >
-              + Upload
-            </button>
-          )}
+          <AuthLoading>
+            <UploadButton onClick={() => {}} enabled={false} />
+          </AuthLoading>
+          <Authenticated>
+            <UploadButton onClick={() => setUploadOpen(true)} enabled />
+          </Authenticated>
+          <Unauthenticated>
+            <UploadButton onClick={() => {}} enabled={false} />
+          </Unauthenticated>
           <UserMenu />
         </div>
       </div>
 
-      {/* Landmark detail panel */}
       <LandmarkPanel />
 
-      {/* Upload modal */}
-      {isAuthenticated && (
-        <UploadModal
-          isOpen={uploadOpen}
-          onClose={() => setUploadOpen(false)}
-        />
-      )}
+      <Authenticated>
+        <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+      </Authenticated>
 
-      <PhotoLightbox
-        photoId={selectedPhotoId}
-        onClose={() => selectPhoto(null)}
-      />
+      <PhotoLightbox photoId={selectedPhotoId} onClose={() => selectPhoto(null)} />
     </div>
   );
 }
