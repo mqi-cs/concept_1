@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import L from "leaflet";
-import { MapContainer as LeafletMap, TileLayer, Marker, useMap } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
+import Map, { Marker, type MapRef, type MarkerDragEvent } from "react-map-gl/maplibre";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 interface LocationPickerProps {
   lat: number;
@@ -12,24 +11,20 @@ interface LocationPickerProps {
   hasExif: boolean;
 }
 
-const pinIcon = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-});
-
-function Recenter({ lat, lng }: { lat: number; lng: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView([lat, lng], map.getZoom());
-  }, [lat, lng, map]);
-  return null;
-}
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
 export default function LocationPicker({ lat, lng, onChange, hasExif }: LocationPickerProps) {
-  const markerRef = useRef<L.Marker | null>(null);
+  const mapRef = useRef<MapRef>(null);
+
+  useEffect(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    map.easeTo({ center: [lng, lat], duration: 300 });
+  }, [lat, lng]);
+
+  function handleDragEnd(e: MarkerDragEvent) {
+    onChange(e.lngLat.lat, e.lngLat.lng);
+  }
 
   return (
     <div>
@@ -42,34 +37,34 @@ export default function LocationPicker({ lat, lng, onChange, hasExif }: Location
         )}
       </div>
       <div className="h-48 rounded-lg overflow-hidden border">
-        <LeafletMap
-          center={[lat, lng]}
-          zoom={14}
-          className="h-full w-full"
-          scrollWheelZoom={false}
+        <Map
+          ref={mapRef}
+          initialViewState={{ longitude: lng, latitude: lat, zoom: 14 }}
+          mapStyle={MAP_STYLE}
+          style={{ width: "100%", height: "100%" }}
+          dragRotate={false}
+          pitchWithRotate={false}
         >
-          <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
-          <Recenter lat={lat} lng={lng} />
           <Marker
-            position={[lat, lng]}
+            longitude={lng}
+            latitude={lat}
+            anchor="bottom"
             draggable
-            icon={pinIcon}
-            ref={(ref) => {
-              markerRef.current = ref;
-            }}
-            eventHandlers={{
-              dragend: () => {
-                const m = markerRef.current;
-                if (!m) return;
-                const p = m.getLatLng();
-                onChange(p.lat, p.lng);
-              },
-            }}
-          />
-        </LeafletMap>
+            onDragEnd={handleDragEnd}
+          >
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: "50% 50% 50% 0",
+                transform: "rotate(-45deg)",
+                background: "#3b82f6",
+                border: "2px solid white",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+              }}
+            />
+          </Marker>
+        </Map>
       </div>
       <p className="text-xs text-gray-500 mt-1">
         Drag the pin to adjust. {lat.toFixed(5)}, {lng.toFixed(5)}

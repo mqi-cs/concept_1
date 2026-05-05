@@ -1,159 +1,181 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import L from "leaflet";
-import { MapContainer as LeafletMap, TileLayer, useMapEvents } from "react-leaflet";
-import MarkerClusterGroup from "react-leaflet-cluster";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Map, {
+  Marker,
+  NavigationControl,
+  type MapRef,
+} from "react-map-gl/maplibre";
 import { useQuery } from "convex/react";
+import maplibregl from "maplibre-gl";
 import { api } from "../../../convex/_generated/api";
 import LandmarkMarker from "./LandmarkMarker";
 import PhotoMarker from "./PhotoMarker";
 import { useMapStore } from "@/stores/mapStore";
-import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-function updateBounds(
-  map: L.Map,
-  setBounds: (b: { west: number; south: number; east: number; north: number }) => void,
-  setZoom: (z: number) => void
-) {
-  const b = map.getBounds();
-  setBounds({
-    west: b.getWest(),
-    south: b.getSouth(),
-    east: b.getEast(),
-    north: b.getNorth(),
-  });
-  setZoom(map.getZoom());
-}
-
-function MapEvents() {
-  const { setBounds, setZoom } = useMapStore();
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-
-  const map = useMapEvents({
-    moveend() {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        updateBounds(map, setBounds, setZoom);
-      }, 300);
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const FALLBACK_STYLE: maplibregl.StyleSpecification = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors",
     },
-  });
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
+};
 
-  useEffect(() => {
-    updateBounds(map, setBounds, setZoom);
-  }, [map, setBounds, setZoom]);
-
-  return null;
+function add3DBuildings(map: maplibregl.Map) {
+  if (map.getLayer("3d-buildings")) return;
+  const layers = map.getStyle().layers ?? [];
+  const labelLayer = layers.find(
+    (l) => l.type === "symbol" && (l.layout as { "text-field"?: unknown } | undefined)?.["text-field"]
+  );
+  const buildingSource = map.getStyle().sources?.openmaptiles ? "openmaptiles" : null;
+  if (!buildingSource) return;
+  map.addLayer(
+    {
+      id: "3d-buildings",
+      source: buildingSource,
+      "source-layer": "building",
+      type: "fill-extrusion",
+      minzoom: 14,
+      paint: {
+        "fill-extrusion-color": "#aab",
+        "fill-extrusion-height": [
+          "case",
+          ["has", "render_height"],
+          ["get", "render_height"],
+          ["case", ["has", "height"], ["get", "height"], 5],
+        ],
+        "fill-extrusion-base": [
+          "case",
+          ["has", "render_min_height"],
+          ["get", "render_min_height"],
+          0,
+        ],
+        "fill-extrusion-opacity": 0.7,
+      },
+    },
+    labelLayer?.id
+  );
 }
 
-function LandmarkMarkers() {
-  const { bounds, selectLandmark } = useMapStore();
-
-  const landmarks = useQuery(
-    api.landmarks.getInBBox,
-    bounds ? bounds : "skip"
-  );
-
-  if (!landmarks) return null;
-
-  return (
-    <MarkerClusterGroup chunkedLoading>
-      {landmarks.map((landmark) => (
-        <LandmarkMarker
-          key={landmark._id}
-          landmark={landmark}
-          onClick={() => selectLandmark(landmark._id)}
-        />
-      ))}
-    </MarkerClusterGroup>
-  );
-}
-
-interface PhotoClusterLike {
-  getChildCount(): number;
-  getAllChildMarkers(): L.Marker[];
-}
-
-function createPhotoClusterIcon(cluster: PhotoClusterLike) {
-  const count = cluster.getChildCount();
-  const firstChild = cluster.getAllChildMarkers()[0];
-  const cover = (firstChild?.options?.icon as L.DivIcon | undefined)?.options?.html ?? "";
-  const coverMatch = typeof cover === "string" ? cover.match(/url\('([^']+)'\)/) : null;
-  const url = coverMatch?.[1];
-  return L.divIcon({
-    className: "photo-cluster",
-    html: `<div style="
-      position: relative;
-      width: 48px;
-      height: 48px;
-      border-radius: 10px;
-      border: 2px solid white;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
-      overflow: hidden;
-      background: #d1d5db;
-      ${url ? `background-image: url('${url}'); background-size: cover; background-position: center;` : ""}
-    ">
-      <div style="
-        position: absolute;
-        bottom: -2px;
-        right: -2px;
-        background: #2563eb;
-        color: white;
-        font-size: 11px;
-        font-weight: 600;
-        padding: 2px 6px;
-        border-radius: 8px;
-        border: 2px solid white;
-      ">${count}</div>
-    </div>`,
-    iconSize: [48, 48],
-    iconAnchor: [24, 24],
-  });
-}
-
-function PhotoMarkers() {
-  const { bounds, selectPhoto } = useMapStore();
-
-  const photos = useQuery(
-    api.photos.getInBBox,
-    bounds ? bounds : "skip"
-  );
-
-  if (!photos) return null;
-
-  return (
-    <MarkerClusterGroup
-      chunkedLoading
-      iconCreateFunction={createPhotoClusterIcon}
-      maxClusterRadius={60}
-      showCoverageOnHover={false}
-    >
-      {photos.map((photo) => (
-        <PhotoMarker
-          key={photo._id}
-          photo={photo}
-          onClick={() => selectPhoto(photo._id)}
-        />
-      ))}
-    </MarkerClusterGroup>
-  );
+function remove3DBuildings(map: maplibregl.Map) {
+  if (map.getLayer("3d-buildings")) map.removeLayer("3d-buildings");
 }
 
 export default function MapView() {
+  const mapRef = useRef<MapRef>(null);
+  const { bounds, setBounds, setZoom, selectLandmark, selectPhoto } = useMapStore();
+  const [is3D, setIs3D] = useState(false);
+  const [styleSpec, setStyleSpec] = useState<string | maplibregl.StyleSpecification>(MAP_STYLE);
+
+  const landmarks = useQuery(api.landmarks.getInBBox, bounds ?? "skip");
+  const photos = useQuery(api.photos.getInBBox, bounds ?? "skip");
+
+  const updateBounds = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const b = map.getBounds();
+    setBounds({
+      west: b.getWest(),
+      south: b.getSouth(),
+      east: b.getEast(),
+      north: b.getNorth(),
+    });
+    setZoom(map.getZoom());
+  }, [setBounds, setZoom]);
+
+  function handleMoveEnd() {
+    updateBounds();
+  }
+
+  function handleLoad() {
+    updateBounds();
+    if (is3D) {
+      const map = mapRef.current?.getMap();
+      if (map) add3DBuildings(map);
+    }
+  }
+
+  function toggle3D() {
+    const map = mapRef.current?.getMap();
+    if (!map) return;
+    const next = !is3D;
+    setIs3D(next);
+    map.easeTo({ pitch: next ? 60 : 0, bearing: next ? -20 : 0, duration: 600 });
+    if (next) add3DBuildings(map);
+    else remove3DBuildings(map);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(MAP_STYLE, { method: "HEAD" })
+      .then((r) => {
+        if (!r.ok && !cancelled) setStyleSpec(FALLBACK_STYLE);
+      })
+      .catch(() => {
+        if (!cancelled) setStyleSpec(FALLBACK_STYLE);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
-    <LeafletMap
-      center={[51.505, -0.09]}
-      zoom={13}
-      className="h-full w-full"
-      zoomControl={false}
-    >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <MapEvents />
-      <LandmarkMarkers />
-      <PhotoMarkers />
-    </LeafletMap>
+    <div className="relative h-full w-full">
+      <Map
+        ref={mapRef}
+        initialViewState={{ longitude: -0.09, latitude: 51.505, zoom: 13 }}
+        mapStyle={styleSpec}
+        onMoveEnd={handleMoveEnd}
+        onLoad={handleLoad}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <NavigationControl position="bottom-right" showCompass visualizePitch />
+
+        {landmarks?.map((l) => (
+          <Marker
+            key={l._id}
+            longitude={l.longitude}
+            latitude={l.latitude}
+            anchor="bottom"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              selectLandmark(l._id);
+            }}
+          >
+            <LandmarkMarker landmark={l} />
+          </Marker>
+        ))}
+
+        {photos?.map((p) => (
+          <Marker
+            key={p._id}
+            longitude={p.longitude}
+            latitude={p.latitude}
+            anchor="center"
+            onClick={(e) => {
+              e.originalEvent.stopPropagation();
+              selectPhoto(p._id);
+            }}
+          >
+            <PhotoMarker photo={p} />
+          </Marker>
+        ))}
+      </Map>
+
+      <button
+        onClick={toggle3D}
+        className="absolute bottom-4 right-16 z-[500] bg-white/95 backdrop-blur text-gray-700 px-3 py-2 rounded-lg text-sm font-medium shadow hover:bg-white transition-colors"
+        title={is3D ? "Switch to 2D" : "Switch to 3D"}
+      >
+        {is3D ? "2D" : "3D"}
+      </button>
+    </div>
   );
 }
