@@ -25,7 +25,7 @@ export const getForLandmark = query({
 
     const userId = await getAuthUserId(ctx);
 
-    return await Promise.all(
+    const resolved = await Promise.all(
       photos.map(async (photo) => {
         const uploader = photo.uploadedBy ? await ctx.db.get(photo.uploadedBy) : null;
         let lovedByUser = false;
@@ -46,6 +46,8 @@ export const getForLandmark = query({
         };
       })
     );
+
+    return resolved.filter((p): p is typeof p & { url: string } => p.url !== null);
   },
 });
 
@@ -108,6 +110,9 @@ export const getById = query({
     const photo = await ctx.db.get(args.id);
     if (!photo) return null;
 
+    const url = await ctx.storage.getUrl(photo.storageId);
+    if (!url) return null;
+
     const userId = await getAuthUserId(ctx);
     const uploader = photo.uploadedBy ? await ctx.db.get(photo.uploadedBy) : null;
     let lovedByUser = false;
@@ -123,7 +128,7 @@ export const getById = query({
 
     return {
       ...photo,
-      url: await ctx.storage.getUrl(photo.storageId),
+      url,
       uploaderName: uploader?.displayName ?? null,
       lovedByUser,
       isOwn: !!userId && photo.uploadedBy === userId,
@@ -150,7 +155,7 @@ export const getInBBox = query({
       .filter((p) => p.longitude >= args.west && p.longitude <= args.east)
       .slice(0, 200);
 
-    return await Promise.all(
+    const withUrls = await Promise.all(
       filtered.map(async (p) => ({
         _id: p._id,
         latitude: p.latitude,
@@ -160,6 +165,8 @@ export const getInBBox = query({
         landmarkId: p.landmarkId,
       }))
     );
+
+    return withUrls.filter((p): p is typeof p & { url: string } => p.url !== null);
   },
 });
 
