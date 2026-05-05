@@ -2,9 +2,6 @@
 
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useConvexAuth } from "convex/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 
 interface AuthFormProps {
   mode: "login" | "register";
@@ -17,25 +14,24 @@ export default function AuthForm({ mode }: AuthFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { signIn } = useAuthActions();
-  const { isAuthenticated } = useConvexAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (isAuthenticated) router.replace("/");
-  }, [isAuthenticated, router]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await signIn("password", {
+      const res = await signIn("password", {
         email,
         password,
         flow: mode === "register" ? "signUp" : "signIn",
         ...(mode === "register" ? { name: displayName } : {}),
       });
-      // Auth state flip will trigger the useEffect above to redirect.
+      if (res?.signingIn) {
+        window.location.href = "/";
+        return;
+      }
+      setError("Authentication didn't complete. Please try again.");
+      setSubmitting(false);
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Something went wrong";
       setError(friendlyError(raw, mode));
