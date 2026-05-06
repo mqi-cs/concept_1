@@ -108,11 +108,11 @@ const ClusterMarker = memo(function ClusterMarker({
     <div
       style={{
         position: "relative",
-        width: 48,
-        height: 48,
-        borderRadius: 10,
+        width: 88,
+        height: 88,
+        borderRadius: 16,
         border: "2px solid white",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.45)",
+        boxShadow: "0 3px 12px rgba(0,0,0,0.5)",
         overflow: "hidden",
         background: coverUrl ? `center/cover no-repeat url('${coverUrl}')` : "#d1d5db",
         cursor: "pointer",
@@ -125,10 +125,10 @@ const ClusterMarker = memo(function ClusterMarker({
           right: -2,
           background: "#2563eb",
           color: "white",
-          fontSize: 11,
+          fontSize: 13,
           fontWeight: 600,
-          padding: "2px 6px",
-          borderRadius: 8,
+          padding: "3px 8px",
+          borderRadius: 10,
           border: "2px solid white",
         }}
       >
@@ -177,7 +177,7 @@ export default function MapView() {
     points: photoPoints,
     bounds: queryBounds,
     zoom,
-    radius: 60,
+    radius: 90,
     maxZoom: 18,
   });
 

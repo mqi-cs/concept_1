@@ -11,11 +11,11 @@ function PhotoMarker({ url, loveCount }: PhotoMarkerProps) {
   return (
     <div
       style={{
-        width: 40,
-        height: 40,
-        borderRadius: 8,
+        width: 80,
+        height: 80,
+        borderRadius: 14,
         border: "2px solid white",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
+        boxShadow: "0 3px 10px rgba(0,0,0,0.45)",
         overflow: "hidden",
         background: url ? `center/cover no-repeat url('${url}')` : "#e5e7eb",
         cursor: "pointer",
