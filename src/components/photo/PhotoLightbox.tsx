@@ -73,11 +73,16 @@ export default function PhotoLightbox({ photoId, onClose }: PhotoLightboxProps) 
 
             <div className="p-5 overflow-y-auto">
               <div className="flex items-start justify-between gap-4 mb-3">
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 flex items-center gap-2">
                   {photo.uploaderName ? (
-                    <>by <span className="font-medium text-gray-700">{photo.uploaderName}</span></>
+                    <span>by <span className="font-medium text-gray-700">{photo.uploaderName}</span></span>
                   ) : (
                     <span className="italic">Anonymous upload</span>
+                  )}
+                  {photo.visibility === "friends" && (
+                    <span className="text-[11px] bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded">
+                      Friends only
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-3">

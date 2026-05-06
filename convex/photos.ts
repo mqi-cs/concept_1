@@ -1,6 +1,21 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query, mutation, type QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Doc, Id } from "./_generated/dataModel";
+import { getFriendIds } from "./friends";
+
+async function canViewerSee(
+  ctx: QueryCtx,
+  photo: Doc<"photos">,
+  viewerId: Id<"users"> | null,
+  friendIds: Set<Id<"users">> | null,
+): Promise<boolean> {
+  if (photo.visibility !== "friends") return true;
+  if (!viewerId || !photo.uploadedBy) return false;
+  if (photo.uploadedBy === viewerId) return true;
+  const ids = friendIds ?? (await getFriendIds(ctx, viewerId));
+  return ids.has(photo.uploadedBy);
+}
 
 export const getForLandmark = query({
   args: {
@@ -14,16 +29,22 @@ export const getForLandmark = query({
         .query("photos")
         .withIndex("by_landmark_loves", (q) => q.eq("landmarkId", args.landmarkId))
         .order("desc")
-        .take(5);
+        .take(20);
     } else {
       photos = await ctx.db
         .query("photos")
         .withIndex("by_landmark_time", (q) => q.eq("landmarkId", args.landmarkId))
         .order("desc")
-        .take(5);
+        .take(20);
     }
 
     const userId = await getAuthUserId(ctx);
+    const friendIds = userId ? await getFriendIds(ctx, userId) : null;
+    photos = (
+      await Promise.all(
+        photos.map(async (p) => ((await canViewerSee(ctx, p, userId, friendIds)) ? p : null)),
+      )
+    ).filter((p): p is Doc<"photos"> => p !== null).slice(0, 5);
 
     const resolved = await Promise.all(
       photos.map(async (photo) => {
@@ -65,6 +86,7 @@ export const create = mutation({
     latitude: v.number(),
     longitude: v.number(),
     landmarkId: v.optional(v.id("landmarks")),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("friends"))),
     timeOfDay: v.optional(v.string()),
     gearNotes: v.optional(v.string()),
     accessibilityNotes: v.optional(v.string()),
@@ -84,6 +106,7 @@ export const create = mutation({
       longitude: args.longitude,
       landmarkId: args.landmarkId,
       uploadedBy: userId,
+      visibility: args.visibility ?? "public",
       timeOfDay: args.timeOfDay,
       gearNotes: args.gearNotes,
       accessibilityNotes: args.accessibilityNotes,
@@ -110,10 +133,12 @@ export const getById = query({
     const photo = await ctx.db.get(args.id);
     if (!photo) return null;
 
+    const userId = await getAuthUserId(ctx);
+    if (!(await canViewerSee(ctx, photo, userId, null))) return null;
+
     const url = await ctx.storage.getUrl(photo.storageId);
     if (!url) return null;
 
-    const userId = await getAuthUserId(ctx);
     const uploader = photo.uploadedBy ? await ctx.db.get(photo.uploadedBy) : null;
     let lovedByUser = false;
     if (userId) {
@@ -142,6 +167,7 @@ export const getInBBox = query({
     south: v.number(),
     east: v.number(),
     north: v.number(),
+    view: v.optional(v.union(v.literal("public"), v.literal("friends"))),
   },
   handler: async (ctx, args) => {
     const photos = await ctx.db
@@ -151,9 +177,20 @@ export const getInBBox = query({
       )
       .take(500);
 
-    const filtered = photos
-      .filter((p) => p.longitude >= args.west && p.longitude <= args.east)
-      .slice(0, 200);
+    const userId = await getAuthUserId(ctx);
+    const friendIds = userId ? await getFriendIds(ctx, userId) : null;
+    const view = args.view ?? "public";
+
+    const filtered: Doc<"photos">[] = [];
+    for (const p of photos) {
+      if (p.longitude < args.west || p.longitude > args.east) continue;
+      const isPrivate = p.visibility === "friends";
+      if (view === "public" && isPrivate) continue;
+      if (view === "friends" && !isPrivate) continue;
+      if (!(await canViewerSee(ctx, p, userId, friendIds))) continue;
+      filtered.push(p);
+      if (filtered.length >= 200) break;
+    }
 
     const withUrls = await Promise.all(
       filtered.map(async (p) => ({
@@ -163,6 +200,7 @@ export const getInBBox = query({
         url: await ctx.storage.getUrl(p.storageId),
         loveCount: p.loveCount,
         landmarkId: p.landmarkId,
+        visibility: p.visibility ?? "public",
       }))
     );
 

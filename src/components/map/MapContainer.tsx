@@ -6,7 +6,7 @@ import Map, {
   NavigationControl,
   type MapRef,
 } from "react-map-gl/maplibre";
-import { useQuery } from "convex/react";
+import { Authenticated, useQuery } from "convex/react";
 import maplibregl from "maplibre-gl";
 import { api } from "../../../convex/_generated/api";
 import LandmarkMarker from "./LandmarkMarker";
@@ -140,7 +140,7 @@ const ClusterMarker = memo(function ClusterMarker({
 
 export default function MapView() {
   const mapRef = useRef<MapRef>(null);
-  const { bounds, zoom, setBounds, setZoom, selectLandmark, selectPhoto } = useMapStore();
+  const { bounds, zoom, view, setBounds, setZoom, setView, selectLandmark, selectPhoto } = useMapStore();
   const [is3D, setIs3D] = useState(false);
   const [styleSpec, setStyleSpec] = useState<string | maplibregl.StyleSpecification>(MAP_STYLE);
 
@@ -150,10 +150,18 @@ export default function MapView() {
   }
 
   const landmarksQuery = useQuery(api.landmarks.getInBBox, queryBounds ?? "skip");
-  const photosQuery = useQuery(api.photos.getInBBox, queryBounds ?? "skip");
+  const photosQuery = useQuery(
+    api.photos.getInBBox,
+    queryBounds ? { ...queryBounds, view } : "skip",
+  );
 
   const [cachedLandmarks, setCachedLandmarks] = useState<typeof landmarksQuery>(undefined);
   const [cachedPhotos, setCachedPhotos] = useState<typeof photosQuery>(undefined);
+  const [lastView, setLastView] = useState(view);
+  if (lastView !== view) {
+    setLastView(view);
+    setCachedPhotos(undefined);
+  }
   if (landmarksQuery !== undefined && landmarksQuery !== cachedLandmarks) {
     setCachedLandmarks(landmarksQuery);
   }
@@ -310,6 +318,27 @@ export default function MapView() {
       >
         {is3D ? "2D" : "3D"}
       </button>
+
+      <Authenticated>
+        <div className="absolute top-4 left-4 z-[500] flex bg-white/95 backdrop-blur rounded-lg shadow overflow-hidden text-sm font-medium">
+          <button
+            onClick={() => setView("public")}
+            className={`px-3 py-2 transition-colors ${
+              view === "public" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-white"
+            }`}
+          >
+            Public
+          </button>
+          <button
+            onClick={() => setView("friends")}
+            className={`px-3 py-2 transition-colors border-l ${
+              view === "friends" ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-white"
+            }`}
+          >
+            Friends
+          </button>
+        </div>
+      </Authenticated>
     </div>
   );
 }

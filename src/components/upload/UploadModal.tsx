@@ -47,6 +47,7 @@ async function decodeImage(file: File): Promise<boolean> {
 export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   const [entries, setEntries] = useState<PhotoEntry[]>([]);
   const [metadata, setMetadata] = useState<Record<string, unknown>>({});
+  const [visibility, setVisibility] = useState<"public" | "friends">("public");
   const [phase, setPhase] = useState<"select" | "uploading-ready" | "locating">("select");
   const [placeSearchOpen, setPlaceSearchOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState(false);
@@ -108,6 +109,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
     entries.forEach((e) => URL.revokeObjectURL(e.preview));
     setEntries([]);
     setMetadata({});
+    setVisibility("public");
     setPhase("select");
     setPlaceSearchOpen(false);
     setGlobalError(null);
@@ -141,6 +143,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         storageId: storageId as Id<"_storage">,
         latitude: location.lat,
         longitude: location.lng,
+        visibility,
         timeOfDay: (metadata.timeOfDay as string) || undefined,
         gearNotes: (metadata.gearNotes as string) || undefined,
         accessibilityNotes: (metadata.accessibilityNotes as string) || undefined,
@@ -251,6 +254,30 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                   </ul>
                 </div>
               )}
+
+              <div className="mt-4 flex items-center gap-3 bg-gray-50 border rounded-lg px-3 py-2">
+                <span className="text-sm font-medium text-gray-700">Visibility</span>
+                <div className="flex rounded-md overflow-hidden border">
+                  <button
+                    type="button"
+                    onClick={() => setVisibility("public")}
+                    className={`px-3 py-1 text-xs font-medium ${
+                      visibility === "public" ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    Public
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVisibility("friends")}
+                    className={`px-3 py-1 text-xs font-medium border-l ${
+                      visibility === "friends" ? "bg-blue-600 text-white" : "bg-white text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    Friends only
+                  </button>
+                </div>
+              </div>
 
               <div className="mt-4">
                 <MetadataForm onMetadataChange={handleMetadataChange} />

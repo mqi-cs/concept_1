@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as friends from "../friends.js";
 import type * as http from "../http.js";
 import type * as landmarks from "../landmarks.js";
 import type * as photos from "../photos.js";
@@ -23,6 +24,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  friends: typeof friends;
   http: typeof http;
   landmarks: typeof landmarks;
   photos: typeof photos;

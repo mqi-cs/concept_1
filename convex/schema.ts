@@ -32,6 +32,7 @@ export default defineSchema({
     latitude: v.number(),
     longitude: v.number(),
     uploadedBy: v.optional(v.id("users")),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("friends"))),
     timeOfDay: v.optional(v.string()),
     gearNotes: v.optional(v.string()),
     accessibilityNotes: v.optional(v.string()),
@@ -49,4 +50,18 @@ export default defineSchema({
   })
     .index("by_photo_user", ["photoId", "userId"])
     .index("by_user", ["userId"]),
+
+  friendships: defineTable({
+    userA: v.id("users"),
+    userB: v.id("users"),
+  })
+    .index("by_userA_userB", ["userA", "userB"])
+    .index("by_userB", ["userB"]),
+
+  friendRequests: defineTable({
+    fromUserId: v.id("users"),
+    toUserId: v.id("users"),
+  })
+    .index("by_to_from", ["toUserId", "fromUserId"])
+    .index("by_from", ["fromUserId"]),
 });
