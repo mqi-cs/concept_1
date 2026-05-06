@@ -87,7 +87,13 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
       });
     }
 
-    setEntries((prev) => [...prev, ...built]);
+    setEntries((prev) => {
+      const combined = [...prev, ...built];
+      return [
+        ...combined.filter((e) => e.hasExif),
+        ...combined.filter((e) => !e.hasExif),
+      ];
+    });
     if (invalid > 0) {
       setGlobalError(`${invalid} file${invalid === 1 ? "" : "s"} skipped (not a supported image).`);
     }
@@ -147,6 +153,12 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
         errorMsg: err instanceof Error ? err.message : "Upload failed",
       });
     }
+  }
+
+  async function retryEntry(id: string) {
+    const entry = entries.find((e) => e.id === id);
+    if (!entry || !entry.location) return;
+    await uploadEntry(entry, entry.location);
   }
 
   async function handleStart() {
@@ -229,7 +241,12 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
                   </div>
                   <ul className="max-h-48 overflow-y-auto border rounded-lg divide-y">
                     {entries.map((e) => (
-                      <EntryRow key={e.id} entry={e} onRemove={() => removeEntry(e.id)} />
+                      <EntryRow
+                        key={e.id}
+                        entry={e}
+                        onRemove={() => removeEntry(e.id)}
+                        onRetry={() => retryEntry(e.id)}
+                      />
                     ))}
                   </ul>
                 </div>
@@ -259,7 +276,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
               </p>
               <ul className="max-h-64 overflow-y-auto border rounded-lg divide-y">
                 {entries.map((e) => (
-                  <EntryRow key={e.id} entry={e} />
+                  <EntryRow key={e.id} entry={e} onRetry={() => retryEntry(e.id)} />
                 ))}
               </ul>
             </div>
@@ -293,7 +310,15 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps) {
   );
 }
 
-function EntryRow({ entry, onRemove }: { entry: PhotoEntry; onRemove?: () => void }) {
+function EntryRow({
+  entry,
+  onRemove,
+  onRetry,
+}: {
+  entry: PhotoEntry;
+  onRemove?: () => void;
+  onRetry?: () => void;
+}) {
   const statusLabel = {
     ready: { text: "Ready", className: "text-green-700 bg-green-50 border-green-200" },
     "needs-location": { text: "Needs location", className: "text-amber-700 bg-amber-50 border-amber-200" },
@@ -313,6 +338,14 @@ function EntryRow({ entry, onRemove }: { entry: PhotoEntry; onRemove?: () => voi
       <span className={`text-xs px-2 py-0.5 rounded border ${statusLabel.className}`}>
         {statusLabel.text}
       </span>
+      {onRetry && entry.status === "error" && entry.location && (
+        <button
+          onClick={onRetry}
+          className="text-xs text-blue-600 hover:underline"
+        >
+          Retry
+        </button>
+      )}
       {onRemove && entry.status !== "uploading" && entry.status !== "done" && (
         <button onClick={onRemove} className="text-gray-400 hover:text-gray-600 text-sm" aria-label="Remove">
           &times;
