@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Map, {
   Marker,
   NavigationControl,
@@ -75,7 +75,35 @@ function remove3DBuildings(map: maplibregl.Map) {
   if (map.getLayer("3d-buildings")) map.removeLayer("3d-buildings");
 }
 
-function ClusterMarker({ count, coverUrl }: { count: number; coverUrl: string | null }) {
+type BBox = { west: number; south: number; east: number; north: number };
+
+function expandBBox(b: BBox, factor: number): BBox {
+  const dx = (b.east - b.west) * factor;
+  const dy = (b.north - b.south) * factor;
+  return {
+    west: b.west - dx,
+    east: b.east + dx,
+    south: b.south - dy,
+    north: b.north + dy,
+  };
+}
+
+function bboxContains(outer: BBox, inner: BBox): boolean {
+  return (
+    inner.west >= outer.west &&
+    inner.east <= outer.east &&
+    inner.south >= outer.south &&
+    inner.north <= outer.north
+  );
+}
+
+const ClusterMarker = memo(function ClusterMarker({
+  count,
+  coverUrl,
+}: {
+  count: number;
+  coverUrl: string | null;
+}) {
   return (
     <div
       style={{
@@ -108,7 +136,7 @@ function ClusterMarker({ count, coverUrl }: { count: number; coverUrl: string | 
       </div>
     </div>
   );
-}
+});
 
 export default function MapView() {
   const mapRef = useRef<MapRef>(null);
@@ -116,8 +144,24 @@ export default function MapView() {
   const [is3D, setIs3D] = useState(false);
   const [styleSpec, setStyleSpec] = useState<string | maplibregl.StyleSpecification>(MAP_STYLE);
 
-  const landmarks = useQuery(api.landmarks.getInBBox, bounds ?? "skip");
-  const photos = useQuery(api.photos.getInBBox, bounds ?? "skip");
+  const [queryBounds, setQueryBounds] = useState<BBox | null>(null);
+  if (bounds && (!queryBounds || !bboxContains(queryBounds, bounds))) {
+    setQueryBounds(expandBBox(bounds, 1));
+  }
+
+  const landmarksQuery = useQuery(api.landmarks.getInBBox, queryBounds ?? "skip");
+  const photosQuery = useQuery(api.photos.getInBBox, queryBounds ?? "skip");
+
+  const [cachedLandmarks, setCachedLandmarks] = useState<typeof landmarksQuery>(undefined);
+  const [cachedPhotos, setCachedPhotos] = useState<typeof photosQuery>(undefined);
+  if (landmarksQuery !== undefined && landmarksQuery !== cachedLandmarks) {
+    setCachedLandmarks(landmarksQuery);
+  }
+  if (photosQuery !== undefined && photosQuery !== cachedPhotos) {
+    setCachedPhotos(photosQuery);
+  }
+  const landmarks = landmarksQuery ?? cachedLandmarks;
+  const photos = photosQuery ?? cachedPhotos;
 
   const photoPoints = useMemo<PointFeature<PhotoProps>[]>(
     () =>
@@ -131,7 +175,7 @@ export default function MapView() {
 
   const { clusters: photoClusters, index: photoIndex } = useSupercluster<PhotoProps>({
     points: photoPoints,
-    bounds,
+    bounds: queryBounds,
     zoom,
     radius: 60,
     maxZoom: 18,
@@ -216,7 +260,7 @@ export default function MapView() {
               selectLandmark(l._id);
             }}
           >
-            <LandmarkMarker landmark={l} />
+            <LandmarkMarker name={l.name} category={l.category} photoCount={l.photoCount} />
           </Marker>
         ))}
 
@@ -253,7 +297,7 @@ export default function MapView() {
                 selectPhoto(photo._id);
               }}
             >
-              <PhotoMarker photo={photo} />
+              <PhotoMarker url={photo.url} loveCount={photo.loveCount} />
             </Marker>
           );
         })}

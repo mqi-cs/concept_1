@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { LandmarkCategory } from "@/types";
 
 const CATEGORY_COLORS: Record<LandmarkCategory, string> = {
@@ -15,19 +16,16 @@ const CATEGORY_COLORS: Record<LandmarkCategory, string> = {
 };
 
 interface LandmarkMarkerProps {
-  landmark: {
-    _id: string;
-    name: string;
-    category: string;
-    photoCount: number;
-  };
+  name: string;
+  category: string;
+  photoCount: number;
 }
 
-export default function LandmarkMarker({ landmark }: LandmarkMarkerProps) {
-  const color = CATEGORY_COLORS[landmark.category as LandmarkCategory] ?? "#6b7280";
+function LandmarkMarker({ name, category, photoCount }: LandmarkMarkerProps) {
+  const color = CATEGORY_COLORS[category as LandmarkCategory] ?? "#6b7280";
   return (
     <div
-      title={`${landmark.name}${landmark.photoCount ? ` · ${landmark.photoCount} photo${landmark.photoCount === 1 ? "" : "s"}` : ""}`}
+      title={`${name}${photoCount ? ` · ${photoCount} photo${photoCount === 1 ? "" : "s"}` : ""}`}
       style={{
         background: color,
         width: 28,
@@ -37,7 +35,10 @@ export default function LandmarkMarker({ landmark }: LandmarkMarkerProps) {
         border: "2px solid white",
         boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
         cursor: "pointer",
+        willChange: "transform",
       }}
     />
   );
 }
+
+export default memo(LandmarkMarker);

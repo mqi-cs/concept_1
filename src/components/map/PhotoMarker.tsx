@@ -1,14 +1,13 @@
 "use client";
 
+import { memo } from "react";
+
 interface PhotoMarkerProps {
-  photo: {
-    _id: string;
-    url: string | null;
-    loveCount: number;
-  };
+  url: string | null;
+  loveCount: number;
 }
 
-export default function PhotoMarker({ photo }: PhotoMarkerProps) {
+function PhotoMarker({ url, loveCount }: PhotoMarkerProps) {
   return (
     <div
       style={{
@@ -18,10 +17,13 @@ export default function PhotoMarker({ photo }: PhotoMarkerProps) {
         border: "2px solid white",
         boxShadow: "0 2px 6px rgba(0,0,0,0.4)",
         overflow: "hidden",
-        background: photo.url ? `center/cover no-repeat url('${photo.url}')` : "#e5e7eb",
+        background: url ? `center/cover no-repeat url('${url}')` : "#e5e7eb",
         cursor: "pointer",
+        willChange: "transform",
       }}
-      title={`${photo.loveCount} love${photo.loveCount === 1 ? "" : "s"}`}
+      title={`${loveCount} love${loveCount === 1 ? "" : "s"}`}
     />
   );
 }
+
+export default memo(PhotoMarker);
